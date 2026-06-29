@@ -18,7 +18,7 @@ dotenv.config();
 const app = express();
 
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*', // set your frontend Vercel URL in env
+  origin: process.env.FRONTEND_URL || 'https://aipugyo.vercel.app', // set your frontend Vercel URL in env
   credentials: true,
 }));
 app.use(express.json());
