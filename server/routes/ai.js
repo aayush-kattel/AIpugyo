@@ -1,12 +1,12 @@
 import express from 'express';
-import axios from 'axios';
 import multer from 'multer';
-import fs from 'fs';
 import Groq from 'groq-sdk';
 import ChatHistory from '../models/ChatHistory.js';
 
 const router = express.Router();
-const upload = multer({ dest: 'uploads/' });
+
+// ✅ memoryStorage — no disk writes, works on Vercel
+const upload = multer({ storage: multer.memoryStorage() });
 
 const SYSTEM_PROMPT = `You are AI Pugyo (AI पुग्यो), an expert virtual assistant for tourists visiting Nepal. You have deep knowledge of all 77 districts, major trekking routes (EBC, Annapurna Circuit, Langtang, Manaslu, Upper Mustang, Kanchenjunga), teahouse names, altitude sickness symptoms, cultural customs, food, transport, weather patterns, visa rules, emergency contacts, and UNESCO heritage sites. Detect language: Nepali input -> respond Nepali. English input -> respond English. NEVER invent emergency numbers. Be concise and practical.`;
 
@@ -91,21 +91,19 @@ router.get('/history/:userId', async (req, res) => {
   }
 });
 
-// POST /api/ai/image — image recognition via Groq Vision (llama-4-scout)
+// POST /api/ai/image — image recognition via Groq Vision
 router.post('/image', upload.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No image uploaded' });
 
-    const imageData = fs.readFileSync(req.file.path);
-    const base64 = imageData.toString('base64');
+    // ✅ Use buffer directly from memory — no fs.readFileSync needed
+    const base64 = req.file.buffer.toString('base64');
     const mimeType = req.file.mimetype;
 
-    // Use Groq Vision (llama-4-scout supports image input)
     const description = await callGroqVision(base64, mimeType);
 
     res.json({ description });
   } catch (err) {
-    // Friendly fallback if vision model fails
     const msg = err?.error?.message || err.message || '';
     if (msg.includes('model') || msg.includes('vision') || msg.includes('image')) {
       res.json({
@@ -115,11 +113,8 @@ router.post('/image', upload.single('image'), async (req, res) => {
     } else {
       res.status(500).json({ message: 'Image recognition failed', error: err.message });
     }
-  } finally {
-    if (req.file?.path && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
   }
+  // ✅ No finally block needed — no temp file to clean up
 });
 
 // POST /api/ai/itinerary — uses Groq
