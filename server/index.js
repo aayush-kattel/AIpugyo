@@ -13,14 +13,28 @@ import weatherRoutes from './routes/weather.js';
 
 dotenv.config();
 
-// ❌ REMOVED: fs.mkdirSync('uploads') — Vercel filesystem is read-only
-
 const app = express();
 
+// ✅ Allow both production frontend and local dev frontend
+const allowedOrigins = [
+  'https://aipugyo.vercel.app',
+  process.env.FRONTEND_URL,
+  'http://localhost:5173', // Vite default
+  'http://localhost:3000', // CRA/Next default
+].filter(Boolean); // removes undefined if FRONTEND_URL isn't set
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'https://aipugyo.vercel.app', // set your frontend Vercel URL in env
+  origin: function (origin, callback) {
+    // allow requests with no origin (like Postman, curl, mobile apps)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS: ' + origin));
+    }
+  },
   credentials: true,
 }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -49,5 +63,14 @@ const connectDB = async () => {
 
 connectDB().catch(console.error);
 
-// ✅ Export app instead of calling app.listen() — Vercel handles the server
+// ✅ Export app for Vercel (serverless — no .listen() needed there)
 export default app;
+
+// ✅ Only listen locally — Vercel sets NODE_ENV=production automatically,
+// so this block is skipped in production and only runs on your machine.
+if (process.env.NODE_ENV !== 'production') {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => {
+    console.log(`✅ Server running locally on http://localhost:${PORT}`);
+  });
+}
